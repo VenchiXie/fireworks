@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>多彩烟花特效</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #000;
+      }
+
+      canvas {
+        /* margin-top: 100px; */
+        display: block;
+      }
+
+      #startButton {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        padding: 10px 20px;
+        color: white;
+        border: none;
+        border-radius: 25px;
+        width: 100px;
+        height: 50px;
+        margin: auto;
+        cursor: pointer;
+        /* 添加渐变背景 */
+        background: linear-gradient(45deg, #ff00cc, #3333ff);
+        /* 添加阴影效果 */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 0, 204, 0.8);
+        /* 添加过渡效果 */
+        transition: all 0.3s ease;
+      }
+
+      /* 鼠标悬停时的效果 */
+      #startButton:hover {
+        /* 改变渐变角度和颜色 */
+        background: linear-gradient(225deg, #ff00cc, #3333ff);
+        /* 放大按钮 */
+        transform: scale(1.1);
+        /* 改变阴影效果 */
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3), 0 0 30px rgba(255, 0, 204, 1);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="fireworks"></canvas>
+    <audio id="riseSound" src="/mp3/烟花上升.mp3"></audio>
+    <audio id="explosionSound-1" src="/mp3/烟花爆炸.mp3"></audio>
+    <audio id="explosionSound-2" src="/mp3/烟花群放.mp3"></audio>
+    <audio id="explosionSound-3" src="/mp3/放烟花.mp3"></audio>
+
+    <button id="startButton">开始</button>
+
+    <script>
+      // 获取canvas元素
+      const canvas = document.getElementById("fireworks");
+      // 获取canvas的2D上下文
+      const ctx = canvas.getContext("2d");
+      // 设置canvas的宽度为窗口的宽度
+      canvas.width = window.innerWidth;
+      // 设置canvas的高度为窗口的高度
+      canvas.height = window.innerHeight;
+
+      // 获取音频元素
+      const riseSound = document.getElementById("riseSound");
+      const explosionSound_1 = document.getElementById("explosionSound-1");
+      const explosionSound_2 = document.getElementById("explosionSound-2");
+      const explosionSound_3 = document.getElementById("explosionSound-3");
+
+      // 获取开始按钮元素
+      const startButton = document.getElementById("startButton");
+
+      // 烟花粒子类
+      class Particle {
+        constructor(x, y, color) {
+          // 粒子的x坐标
+          this.x = x;
+          // 粒子的y坐标
+          this.y = y;
+          // 粒子的颜色
+          this.color = color;
+          // 粒子的大小
+          this.size = Math.random() * 6 + 1;
+          // 粒子在x轴方向的速度（修改烟花爆炸的分散度）
+          this.speedX = (Math.random() - 0.5) * 40;
+          // 粒子在y轴方向的速度（修改烟花爆炸的分散度）
+          this.speedY = (Math.random() - 0.5) * 40;
+          // 粒子的透明度
+          this.alpha = 1;
+          // 粒子的摩擦力
+          this.friction = 0.95;
+        }
+
+        // 更新粒子的位置和透明度
+        update() {
+          // 粒子在x轴方向的速度逐渐减小
+          this.speedX *= this.friction;
+          // 粒子在y轴方向的速度逐渐减小
+          this.speedY *= this.friction;
+          // 更新粒子的x坐标
+          this.x += this.speedX;
+          // 更新粒子的y坐标
+          this.y += this.speedY;
+          // 粒子的透明度逐渐减小
+          this.alpha -= 0.01;
+        }
+
+        // 绘制粒子
+        draw() {
+          // 保存当前的绘图状态
+          ctx.save();
+          // 设置全局透明度
+          ctx.globalAlpha = this.alpha;
+          // 设置填充颜色
+          ctx.fillStyle = this.color;
+          // 开始绘制路径
+          ctx.beginPath();
+          // 绘制一个圆形
+          ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+          // 填充圆形
+          ctx.fill();
+          // 恢复之前保存的绘图状态
+          ctx.restore();
+        }
+      }
+
+      // 烟花类
+      class Firework {
+        constructor() {
+          // 烟花的x坐标
+          this.x = Math.random() * canvas.width;
+          // 烟花的初始y坐标
+          this.y = canvas.height;
+          // 烟花的目标y坐标
+          this.targetY = Math.random() * canvas.height * 0.9;
+          // 烟花的颜色
+          this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+          // 烟花在y轴方向的速度
+          // this.speedY = -(Math.random() * 10 + 8);
+          this.speedY = -(Math.random() * 5 + 8);
+          // 烟花是否已经爆炸
+          this.exploded = false;
+          // 烟花爆炸后产生的粒子数组
+          this.particles = [];
+          // 烟花上升声音是否已经播放
+          this.riseSoundPlayed = false;
+        }
+
+        // 更新烟花的状态
+        update() {
+          if (!this.exploded) {
+            // 更新烟花的y坐标
+            this.y += this.speedY;
+
+            // 烟花上升声音是否已经播放
+            if (!this.riseSoundPlayed) {
+              // 播放烟花上升声音
+              if (riseSound.readyState === 4) {
+                riseSound.play().catch((error) => {
+                  console.error("播放上升声音时出错:", error);
+                });
+                this.riseSoundPlayed = true;
+              }
+            }
+
+            if (this.y <= this.targetY) {
+              // 烟花到达目标位置，设置为已爆炸
+              this.exploded = true;
+              // 随机生成粒子数量
+              const numParticles = Math.floor(Math.random() * 100) + 50;
+              for (let i = 0; i < numParticles; i++) {
+                // 创建粒子并添加到粒子数组
+                this.particles.push(new Particle(this.x, this.y, this.color));
+              }
+
+              // 延迟播放爆炸声音
+              setTimeout(() => {
+                // 播放烟花单放爆炸声音
+                if (explosionSound_1.readyState === 4) {
+                  explosionSound_1.play().catch((error) => {
+                    console.error("播放爆炸声音时出错:", error);
+                  });
+                }
+              }, 100); // 延迟100毫秒
+
+              // 播放烟花群放爆炸声音
+              setTimeout(() => {
+                if (explosionSound_2.readyState === 4) {
+                  explosionSound_2.play().catch((error) => {
+                    console.error("播放爆炸声音时出错:", error);
+                  });
+                }
+              }, 200); // 延迟200毫秒
+
+              // 播放烟花群放爆炸声音
+              setTimeout(() => {
+                if (explosionSound_3.readyState === 4) {
+                  explosionSound_3.play().catch((error) => {
+                    console.error("播放爆炸声音时出错:", error);
+                  });
+                }
+              }, 300); // 延迟300毫秒
+            }
+          } else {
+            for (let i = this.particles.length - 1; i >= 0; i--) {
+              const particle = this.particles[i];
+              // 更新粒子的状态
+              particle.update();
+              if (particle.alpha <= 0) {
+                // 如果粒子的透明度小于等于0，从粒子数组中移除
+                this.particles.splice(i, 1);
+              }
+            }
+            if (this.particles.length === 0) {
+              // 如果粒子数组为空，从烟花数组中移除烟花
+              fireworks.splice(fireworks.indexOf(this), 1);
+            }
+          }
+        }
+
+        // 绘制烟花
+        draw() {
+          if (!this.exploded) {
+            // 开始绘制路径
+            ctx.beginPath();
+            // 设置描边颜色
+            ctx.strokeStyle = this.color;
+            // 设置线宽
+            ctx.lineWidth = 2;
+            // 移动到烟花的底部
+            ctx.moveTo(this.x, this.y + 10);
+            // 绘制一条直线到烟花的顶部
+            ctx.lineTo(this.x, this.y);
+            // 描边
+            ctx.stroke();
+          } else {
+            for (const particle of this.particles) {
+              // 绘制粒子
+              particle.draw();
+            }
+          }
+        }
+      }
+
+      // 烟花数组
+      const fireworks = [];
+
+      // 创建烟花
+      function createFirework() {
+        fireworks.push(new Firework());
+      }
+
+      let isStarted = false;
+      let intervalId;
+
+      // 点击开始按钮后开始烟花
+      startButton.addEventListener("click", () => {
+        if (!isStarted) {
+          isStarted = true;
+
+          // 每隔一段时间创建一个烟花
+          intervalId = setInterval(createFirework, Math.random() * 200 + 100);
+          // intervalId = setInterval(createFirework, Math.random() * 1000 + 500);
+          // 开始动画循环
+          animate();
+          startButton.style.display = "none";
+        }
+      });
+
+      // 动画循环
+      function animate() {
+        if (isStarted) {
+          // 设置背景颜色为半透明的黑色
+          ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+          // 填充整个canvas
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          for (const firework of fireworks) {
+            // 更新烟花的状态
+            firework.update();
+            // 绘制烟花
+            firework.draw();
+          }
+          // 请求下一帧动画
+          requestAnimationFrame(animate);
+        }
+      }
+
+      // 窗口大小改变时，更新canvas的大小
+      window.addEventListener("resize", () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      });
+
+      //  添加音频事件监听函数
+      [riseSound, explosionSound_1, explosionSound_2, explosionSound_3].forEach((sound) => {
+        sound.addEventListener("error", (error) => {
+          console.error("声音文件加载出错:", error);
+        });
+      });
+    </script>
+  </body>
+</html>
